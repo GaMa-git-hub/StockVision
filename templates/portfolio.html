@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Your Portfolio</title>
+    <link rel="stylesheet" href="/static/css/portfolio.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-container">
+        <div class="nav-logo">StockVision</div>
+
+        <div class="nav-links">
+            <a href="/dashboard" class="{% if active_page == 'dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="/portfolio" class="{% if active_page == 'portfolio' %}active{% endif %}">Portfolio</a>
+            <a href="/watchlist" class="{% if active_page == 'watchlist' %}active{% endif %}">Watchlist</a>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </div>
+</nav>
+
+<div class="portfolio-container">
+
+    <h2>Your Portfolio</h2>
+
+    <!-- Filter Buttons -->
+    <div class="sector-filters">
+        {% for s in all_sectors %}
+        <a href="/portfolio?sector={{ s }}"
+           class="filter-btn {% if selected_sector == s %}active{% endif %}">
+            {{ s }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Add Stock Form -->
+    <form method="POST" class="add-stock-form">
+        <select name="sector" required>
+            <option value="">Sector</option>
+            {% for s in all_sectors %}
+                <option value="{{ s }}">{{ s }}</option>
+            {% endfor %}
+        </select>
+
+        <input type="text" name="company_name" placeholder="Company Name" required>
+        <input type="text" name="symbol" placeholder="Symbol" required>
+        <input type="date" name="purchase_date" required>
+
+        <select name="exchange" required>
+            <option value="">Exchange</option>
+            <option value="NSE">NSE</option>
+            <option value="BSE">BSE</option>
+            <option value="US">US</option>
+        </select>
+
+        <input type="number" step="0.01" name="buy_price" placeholder="Buy Price" required>
+        <input type="number" name="quantity" placeholder="Qty" required>
+
+        <button type="submit" class="add-btn">Add</button>
+    </form>
+
+    <!-- Table -->
+    <table class="portfolio-table">
+        <thead>
+            <tr>
+                <th>Sector</th>
+                <th>Company</th>
+                <th>Symbol</th>
+                <th>Date</th>
+                <th>Exchange</th>
+                <th>Avg Buy Price</th>
+                <th>Qty</th>
+                <th>Current Price</th>
+                <th>Gain/Loss</th>
+            </tr>
+        </thead>
+
+        <tbody id="portfolio-live-body">
+            {% if stocks %}
+                {% for s in stocks %}
+                <tr data-id="{{ s.id }}">
+                    <td>{{ s.sector }}</td>
+                    <td>{{ s.company_name }}</td>
+                    <td>{{ s.symbol }}</td>
+                    <td>{{ s.purchase_date }}</td>
+                    <td>{{ s.exchange }}</td>
+                    <td>{{ s.average_purchase_price }}</td>
+                    <td>{{ s.quantity }}</td>
+
+                    <!-- Live-updatable cells -->
+                    <td class="current-price">{{ s.current_price }}</td>
+                    <td class="gain-cell">
+                        {% if s.gain != "N/A" %}
+                        <span class="{% if s.gain >= 0 %}gain-positive{% else %}gain-negative{% endif %}">
+                            {{ s.gain }}
+                        </span>
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="9" class="empty-msg">No stocks added yet.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+</div>
+
+<!-- LIVE PRICE REFRESH SCRIPT -->
+<script>
+async function refreshPortfolio() {
+    try {
+        const res = await fetch("/live/portfolio");
+        const json = await res.json();
+
+        if (!json.data) return;
+
+        json.data.forEach(item => {
+            const row = document.querySelector(`tr[data-id='${item.id}']`);
+            if (!row) return;
+
+            // Update current price
+            const priceCell = row.querySelector(".current-price");
+            if (priceCell) {
+                priceCell.innerText = item.current_price;
+            }
+
+            // Update gain/loss
+            const gainCell = row.querySelector(".gain-cell");
+            if (gainCell) {
+                if (item.gain === "N/A") {
+                    gainCell.innerHTML = "N/A";
+                } else {
+                    gainCell.innerHTML = `
+                        <span class="${item.gain >= 0 ? "gain-positive" : "gain-negative"}">
+                            ${item.gain}
+                        </span>
+                    `;
+                }
+            }
+        });
+
+    } catch (err) {
+        console.log("Error updating portfolio:", err);
+    }
+}
+
+// Refresh every 12 seconds
+setInterval(refreshPortfolio, 12000);
+refreshPortfolio();
+</script>
+
+</body>
+</html>

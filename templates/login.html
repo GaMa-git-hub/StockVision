@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+    <link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body>
+
+<div class="auth-container">
+
+    <h2 class="auth-title">Sign In</h2>
+
+    {% if error %}
+    <div class="error-msg">{{ error }}</div>
+    {% endif %}
+
+    <form action="/login" method="POST">
+        <input type="email" name="email" placeholder="Email" class="auth-input" required>
+        <input type="password" name="password" placeholder="Password" class="auth-input" required>
+
+        <button type="submit" class="auth-btn">Login</button>
+    </form>
+
+    <div class="auth-footer">
+        New user? <a href="/register">Create an account</a>
+    </div>
+
+</div>
+
+</body>
+</html>

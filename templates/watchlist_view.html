@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{{ wl.name }} — Watchlist</title>
+
+  {% if request.args.get('error') == 'duplicate' %}
+  <div class="error-dup">This stock is already in your watchlist.</div>
+  {% endif %}
+
+  <link rel="stylesheet" href="/static/css/watchlist.css">
+</head>
+
+<body>
+
+<nav class="navbar">
+  <div class="navbar-container">
+    <div class="nav-logo">StockVision</div>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/portfolio">Portfolio</a>
+      <a href="/watchlist" class="active">Watchlist</a>
+      <a href="/logout" class="logout-btn">Logout</a>
+    </div>
+  </div>
+</nav>
+
+<div class="main-container">
+
+  <div class="watchlist-header">
+    <h1 class="wl-title">{{ wl.name }}</h1>
+
+    <form method="POST" action="/watchlist/{{ wl.id }}/add" class="add-inline-form">
+      <input type="text" name="symbol" placeholder="Symbol (e.g., RELIANCE)" required>
+      <select name="exchange" required>
+        <option value="NSE">NSE</option>
+        <option value="BSE">BSE</option>
+        <option value="US">US</option>
+      </select>
+      <button type="submit" class="add-btn">Add</button>
+    </form>
+  </div>
+
+  <div class="table-wrap">
+    <table class="msn-table">
+<thead>
+<tr>
+    <th class="col-symbol">Symbol</th>
+    <th class="col-name">Name</th>
+
+    <th class="col-price sort-btn" data-sort="price">
+        Price
+        <span class="sort-arrows">
+            <span class="up">▲</span>
+            <span class="down">▼</span>
+        </span>
+    </th>
+
+    <th class="col-change sort-btn" data-sort="change">
+        Change
+        <span class="sort-arrows">
+            <span class="up">▲</span>
+            <span class="down">▼</span>
+        </span>
+    </th>
+
+    <th class="col-pct sort-btn" data-sort="percent">
+        %
+        <span class="sort-arrows">
+            <span class="up">▲</span>
+            <span class="down">▼</span>
+        </span>
+    </th>
+
+    <th class="col-action"></th>
+</tr>
+</thead>
+
+<tbody id="live-table-body">
+    {% include "partials/watchlist_rows.html" %}
+</tbody>
+</table>
+
+  </div>
+
+  <div class="bottom-actions">
+    <a href="/watchlist/delete/{{ wl.id }}" class="delete-watchlist-btn">Delete Watchlist</a>
+  </div>
+</div>
+
+<script>
+function refreshPrices() {
+  fetch(window.location.href + "?ajax=1")
+    .then(resp => resp.text())
+    .then(html => {
+      document.querySelector("#live-table-body").innerHTML = html;
+    });
+}
+setInterval(refreshPrices, 20000);
+
+/* SORTING */
+function getCellNumber(row, index) {
+    const txt = row.children[index].innerText.replace(/[₹,%▲▼]/g, "").trim();
+    return txt === "N/A" || txt === "" ? null : parseFloat(txt);
+}
+
+let currentSort = null;
+let currentDir = "desc";
+
+function sortTable(sortType) {
+    const tbody = document.getElementById("live-table-body");
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+
+    let colIndex =
+        sortType === "price" ? 2 :
+        sortType === "change" ? 3 :
+        sortType === "percent" ? 4 : null;
+
+    if (colIndex === null) return;
+
+    if (currentSort === sortType) {
+        currentDir = currentDir === "desc" ? "asc" : "desc";
+    } else {
+        currentDir = "desc";
+    }
+    currentSort = sortType;
+
+    document.querySelectorAll(".sort-btn").forEach(th => {
+        th.classList.remove("sort-active-up", "sort-active-down");
+    });
+
+    const activeHeader = document.querySelector(`.sort-btn[data-sort="${sortType}"]`);
+    if (currentDir === "asc") {
+        activeHeader.classList.add("sort-active-up");
+    } else {
+        activeHeader.classList.add("sort-active-down");
+    }
+
+    let sorted = rows.sort((a, b) => {
+        const A = getCellNumber(a, colIndex);
+        const B = getCellNumber(b, colIndex);
+        if (A === null) return 1;
+        if (B === null) return -1;
+        return currentDir === "desc" ? (B - A) : (A - B);
+    });
+
+    tbody.innerHTML = "";
+    sorted.forEach(r => tbody.appendChild(r));
+}
+
+document.querySelectorAll(".sort-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        sortTable(btn.dataset.sort);
+    });
+});
+</script>
+
+</body>
+</html>

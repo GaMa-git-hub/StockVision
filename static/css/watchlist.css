@@ -1,0 +1,402 @@
+:root{
+  --nav-dark: #1f2937;
+  --primary: #4a90e2;
+  --bg: #f4f6f9;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --red: #dc2626;
+}
+
+body{
+  margin:0;
+  font-family: "Inter", Arial, sans-serif;
+  background:var(--bg);
+  color:#0f172a;
+}
+
+/* 🔥 KEEP NAVBAR SAME AS DASHBOARD */
+.navbar{
+    width:100%;
+    background:var(--nav-dark);
+    padding:12px 0;
+    box-shadow:0 2px 10px rgba(0,0,0,0.06);
+    position:relative;   /* ensures no overlap */
+    z-index:10;
+}
+
+.navbar-container{
+    width:92%;
+    max-width:1200px;
+    margin:0 auto;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.nav-logo{
+    color:white;
+    font-size:20px;
+    font-weight:700;
+}
+
+.nav-links a{
+    margin-left:20px;
+    text-decoration:none;
+    color:#ffffffcc;
+    padding:6px 8px;
+    border-radius:6px;
+}
+
+.nav-links a.active{
+    background:rgba(255,255,255,0.15);
+    color:white;
+}
+
+.logout-btn{
+  background:#e63946;
+  color:white !important;
+  padding:7px 12px;
+  border-radius:6px;
+  text-decoration:none;
+}
+
+/* MAIN CONTAINER */
+.main-container{
+    width:92%;
+    max-width:1200px;
+    margin:28px auto;
+    padding:24px;
+    background:var(--card);
+    border-radius:14px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.05);
+}
+
+/* CREATE WATCHLIST FORM */
+.create-form{
+    display:flex;
+    gap:12px;
+    margin-bottom:22px;
+}
+
+.create-form input{
+    flex:1;
+    padding:12px;
+    border:1px solid #e5e7eb;
+    border-radius:8px;
+}
+
+.create-btn{
+    background:var(--primary);
+    color:white;
+    padding:12px 20px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:600;
+}
+
+.create-btn:hover{
+    background:#3577c8;
+}
+
+/* WATCHLIST ROWS */
+.watchlist-list{
+    margin-top:10px;
+}
+
+.watchlist-row{
+    background:white;
+    padding:18px 20px;
+    margin-bottom:14px;
+    border-radius:10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    box-shadow:0 4px 14px rgba(0,0,0,0.06);
+}
+
+.wl-name{
+    font-size:18px;
+    font-weight:600;
+}
+
+.wl-actions{
+    display:flex;
+    gap:12px;
+}
+
+/* OPEN BUTTON */
+.btn-open{
+    background:var(--primary);
+    padding:8px 16px;
+    border-radius:8px;
+    color:white;
+    text-decoration:none;
+    font-weight:600;
+}
+
+.btn-open:hover{
+    background:#3577c8;
+}
+
+/* DELETE BUTTON */
+.btn-delete{
+    background:#dc2626;
+    padding:8px 16px;
+    border-radius:8px;
+    color:white;
+    text-decoration:none;
+    font-weight:600;
+}
+
+.btn-delete:hover{
+    background:#b91c1c;
+}
+
+
+/* ADD ITEM FORM */
+.add-stock-form{
+    display:flex;
+    gap:12px;
+    margin-bottom:25px;
+}
+
+.add-stock-form input,
+.add-stock-form select{
+    padding:10px;
+    border:1px solid #e6e9ee;
+    border-radius:8px;
+    font-size:14px;
+}
+
+.add-btn{
+    background:var(--primary);
+    color:white;
+    border:none;
+    padding:10px 18px;
+    border-radius:8px;
+    font-weight:600;
+    cursor:pointer;
+}
+.add-btn:hover{
+    background:#3577c8;
+}
+
+/* TABLE */
+.items-table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
+}
+.items-table th{
+    background:#f8fafc;
+    padding:12px;
+    font-weight:700;
+    color:#0f172a;
+    font-size:14px;
+}
+.items-table td{
+    padding:12px;
+    text-align:center;
+    border-bottom:1px solid #eef2f6;
+    font-size:14px;
+}
+
+.empty-msg{
+    padding:20px;
+    color:var(--muted);
+    text-align:center;
+}
+
+/* DELETE Button */
+.delete-btn{
+    color:white;
+    background:#dc2626;
+    padding:7px 14px;
+    border-radius:8px;
+    font-weight:600;
+    text-decoration:none;
+    font-size:13px;
+}
+.delete-btn:hover{
+    background:#b91c1c;
+}
+
+/* DELETE WATCHLIST BUTTON */
+.delete-watchlist-btn{
+    display:inline-block;
+    margin-top:25px;
+    color:white;
+    background:#dc2626;
+    padding:12px 18px;
+    border-radius:8px;
+    font-weight:600;
+    text-decoration:none;
+}
+.delete-watchlist-btn:hover{
+    background:#b91c1c;
+}
+
+
+
+/* ------- FINAL MSN-STYLE TABLE (FIXED WIDTH, PERFECT ALIGNMENT) ------- */
+
+/* header area */
+.watchlist-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:16px;
+}
+.wl-title{ font-size:28px; margin:0; }
+
+/* inline add form */
+.add-inline-form{ display:flex; gap:8px; align-items:center; }
+.add-inline-form input{
+  padding:8px 10px; border-radius:8px; border:1px solid #e6e9ee; min-width:220px;
+}
+.add-inline-form select{ padding:8px; border-radius:8px; border:1px solid #e6e9ee; }
+.add-btn{ background:#2b7be4; color:white; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:600; }
+
+/* table wrapper */
+.table-wrap{
+    overflow-x:auto;
+    border-radius:8px;
+    background:white;
+    box-shadow:0 6px 18px rgba(15,23,42,0.04);
+    padding:10px;
+}
+
+/* ------------------ FIXED-WIDTH MSN TABLE ------------------ */
+.msn-table{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;         /* 🔥 MAGIC for perfect alignment */
+    font-size:14px;
+}
+
+.msn-table th,
+.msn-table td{
+    padding:14px 12px;
+    border-bottom:1px solid #eee;
+    vertical-align:middle;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+}
+
+/* ---------- FINAL COLUMN WIDTHS (DO NOT DUPLICATE) ---------- */
+
+.col-symbol{ width:12%; text-align:left; }
+.col-name  { width:28%; text-align:left; }
+.col-price { width:15%; text-align:right; }
+.col-change{ width:15%; text-align:right; }
+.col-pct   { width:15%; text-align:right; }
+.col-action{ width:10%; text-align:center; }
+
+/* gain/loss colors */
+.gain-positive{ color:#16a34a; font-weight:700; }
+.gain-negative{ color:#dc2626; font-weight:700; }
+
+/* delete button */
+.btn-delete{
+  background:#ef4444;
+  color:white;
+  text-decoration:none;
+  padding:8px 14px;
+  border-radius:8px;
+  font-weight:600;
+  display:inline-block;
+}
+.btn-delete:hover{ background:#dc2626; }
+
+.empty-msg{ padding:24px; text-align:center; color:var(--muted); }
+
+/* responsive collapse */
+@media (max-width:800px){
+  .col-name{ width:40%; }
+}
+
+.sort-arrows {
+    font-size: 10px;
+    margin-left: 6px;
+    opacity: 0.35;
+}
+
+.sort-arrows .up,
+.sort-arrows .down {
+    display: inline-block;
+    padding: 0 2px;
+}
+
+/* highlight when active */
+.sort-active-up .up {
+    color: #2563eb;
+    opacity: 1;
+    font-weight: 900;
+}
+
+.sort-active-down .down {
+    color: #2563eb;
+    opacity: 1;
+    font-weight: 900;
+}
+
+.sort-btn {
+    cursor: pointer;            /* HAND POINTER FIX */
+    user-select: none;          /* Prevent text selection */
+}
+
+.sort-btn .sort-arrows {
+    font-size: 12px;
+    opacity: 0.5;
+    margin-left: 4px;
+}
+
+.sort-btn:hover .sort-arrows {
+    opacity: 1;                 /* brighter on hover */
+}
+.sort-btn .sort-arrows {
+    transition: opacity 0.2s ease;
+}
+
+
+/* ----------- SORTING ARROWS ----------- */
+
+.sort-btn {
+    cursor: pointer;
+    user-select: none;
+}
+
+.sort-arrows {
+    margin-left: 6px;
+    font-size: 12px;
+    display: inline-flex;
+    gap: 4px;
+}
+
+.sort-arrows .up,
+.sort-arrows .down {
+    opacity: 0.35;
+    transition: 0.2s ease;
+}
+
+/* ASC active → highlight ▲ only */
+.sort-active-up .sort-arrows .up {
+    opacity: 1;
+    color: #2563eb;
+    font-weight: 900;
+}
+
+/* DESC active → highlight ▼ only */
+.sort-active-down .sort-arrows .down {
+    opacity: 1;
+    color: #2563eb;
+    font-weight: 900;
+}
+
+/* Hover effect */
+.sort-btn:hover .sort-arrows .up,
+.sort-btn:hover .sort-arrows .down {
+    opacity: 0.7;
+}

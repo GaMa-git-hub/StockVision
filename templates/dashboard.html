@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-container">
+        <div class="nav-logo">StockVision</div>
+
+        <div class="nav-links">
+            <a href="/dashboard" class="{% if active_page == 'dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="/portfolio" class="{% if active_page == 'portfolio' %}active{% endif %}">Portfolio</a>
+            <a href="/watchlist" class="{% if active_page == 'watchlist' %}active{% endif %}">Watchlist</a>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </div>
+</nav>
+
+<div class="page-container">
+    <h2>Welcome, {{ session.get('user_name', 'User') }} 👋</h2>
+
+    <div class="dash-grid">
+        <a class="dash-card" href="/portfolio">
+            <h3>Your Portfolio</h3>
+            <p>View holdings, average price, gains & losses.</p>
+        </a>
+
+        <a class="dash-card" href="/watchlist">
+            <h3>Watchlist</h3>
+            <p>Track price movements in real-time.</p>
+        </a>
+    </div>
+</div>
+
+</body>
+</html>

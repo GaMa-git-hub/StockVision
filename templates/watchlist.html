@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Your Watchlists</title>
+    <link rel="stylesheet" href="/static/css/watchlist.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-container">
+        <div class="nav-logo">StockVision</div>
+
+        <div class="nav-links">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/portfolio">Portfolio</a>
+            <a href="/watchlist" class="active">Watchlist</a>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </div>
+</nav>
+
+<div class="main-container">
+
+    <h2>Your Watchlists</h2>
+
+    <!-- Create Watchlist -->
+    <form method="POST" action="/watchlist" class="create-form">
+        <input type="text" name="name" placeholder="New watchlist name" required>
+        <button type="submit" class="create-btn">Create</button>
+    </form>
+
+    <!-- Watchlist Cards -->
+    <div class="watchlist-list">
+        {% if watchlists %}
+            {% for w in watchlists %}
+            <div class="watchlist-row">
+                <div class="wl-name">{{ w.name }}</div>
+
+                <div class="wl-actions">
+                    <a href="/watchlist/{{ w.id }}" class="btn-open">Open</a>
+                    <a href="/watchlist/delete/{{ w.id }}" class="btn-delete" onclick="return confirm('Delete this watchlist and all items?');">Delete</a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p>No watchlists created yet.</p>
+        {% endif %}
+    </div>
+
+</div>
+
+</body>
+</html>
