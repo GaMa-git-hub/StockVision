@@ -18,15 +18,51 @@
         </div>
     </div>
 </nav>
+<!-- ================= TICKER TAPE ================= -->
+<div class="ticker-wrap">
+  <div class="ticker" id="portfolioTicker">
+    <!-- JS will inject items here -->
+  </div>
+</div>
+<!-- =============================================== -->
 
 <div class="portfolio-container">
 
     <h2>Your Portfolio</h2>
 
+    <div class="portfolio-summary">
+
+    <div class="summary-card">
+        <span>Total Invested Value</span>
+        <strong>₹ {{ total_invested }}</strong>
+    </div>
+
+    <div class="summary-card">
+        <span>Current Value</span>
+        <strong>₹ {{ total_current }}</strong>
+    </div>
+
+    <div class="summary-card">
+        <span>Total Profit / Loss</span>
+        <strong class="{{ 'gain-positive' if total_pnl >= 0 else 'gain-negative' }}">
+            ₹ {{ total_pnl }}
+        </strong>
+    </div>
+
+    <div class="summary-card">
+        <span>Portfolio Return</span>
+        <strong class="{{ 'gain-positive' if return_pct >= 0 else 'gain-negative' }}">
+            {{ return_pct }} %
+        </strong>
+    </div>
+
+</div>
+
+
     <!-- Filter Buttons -->
     <div class="sector-filters">
         {% for s in all_sectors %}
-        <a href="/portfolio?sector={{ s }}"
+        <a href="/portfolio?sector={{ s | urlencode }}"
            class="filter-btn {% if selected_sector == s %}active{% endif %}">
             {{ s }}
         </a>
@@ -42,7 +78,7 @@
             {% endfor %}
         </select>
 
-        <input type="text" name="company_name" placeholder="Company Name" required>
+       
         <input type="text" name="symbol" placeholder="Symbol" required>
         <input type="date" name="purchase_date" required>
 
@@ -58,101 +94,287 @@
 
         <button type="submit" class="add-btn">Add</button>
     </form>
+    <!-- ================= CHARTS SECTION ================= -->
+<div class="charts-grid">
 
-    <!-- Table -->
+    <!-- Chart 1: Sector Allocation -->
+    <div class="chart-card">
+        <h3>Portfolio Allocation by Sector</h3>
+        <div class="chart-box">
+            <canvas id="sectorChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Chart 2: Market Cap Exposure -->
+    <div class="chart-card">
+        <h3>Market Cap Exposure</h3>
+        <div class="chart-box">
+            <canvas id="capChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Chart 3: Stock-wise PnL -->
+    <div class="chart-card full-width">
+        <h3>Stock-wise Profit / Loss</h3>
+        <div class="chart-box">
+            <canvas id="pnlChart"></canvas>
+        </div>
+    </div>
+
+</div>
+<!-- ================================================== -->
+
+
+
+
+
+    <!-- Portfolio Table -->
     <table class="portfolio-table">
         <thead>
-            <tr>
-                <th>Sector</th>
-                <th>Company</th>
-                <th>Symbol</th>
-                <th>Date</th>
-                <th>Exchange</th>
-                <th>Avg Buy Price</th>
-                <th>Qty</th>
-                <th>Current Price</th>
-                <th>Gain/Loss</th>
-            </tr>
-        </thead>
+    <tr>
+        <th>Sector</th>
+        <th>Company</th>
+        <th>Symbol</th>
+        <th>Category</th>
+        <th>Date</th>
+        <th>Exchange</th>
+        <th>Avg Buy Price</th>
+        <th>Qty</th>
+        <th>Current Price</th>
+        <th>Gain/Loss</th>
+        <th></th> <!-- DELETE COLUMN -->
+    </tr>
+</thead>
+
 
         <tbody id="portfolio-live-body">
-            {% if stocks %}
-                {% for s in stocks %}
-                <tr data-id="{{ s.id }}">
-                    <td>{{ s.sector }}</td>
-                    <td>{{ s.company_name }}</td>
-                    <td>{{ s.symbol }}</td>
-                    <td>{{ s.purchase_date }}</td>
-                    <td>{{ s.exchange }}</td>
-                    <td>{{ s.average_purchase_price }}</td>
-                    <td>{{ s.quantity }}</td>
+    {% if stocks %}
+        {% for s in stocks %}
+        <tr 
+            data-id="{{ s.id }}"
+            data-avg="{{ s.average_purchase_price }}"
+            data-qty="{{ s.quantity }}"
+        >
+            <td>{{ s.sector }}</td>
+            <td>{{ s.company_name }}</td>
+            <td>{{ s.symbol }}</td>
+            <td>{{ s.category }}</td>
+            <td>{{ s.purchase_date }}</td>
+            <td>{{ s.exchange }}</td>
+            <td>{{ s.average_purchase_price }}</td>
+            <td>{{ s.quantity }}</td>
 
-                    <!-- Live-updatable cells -->
-                    <td class="current-price">{{ s.current_price }}</td>
-                    <td class="gain-cell">
-                        {% if s.gain != "N/A" %}
-                        <span class="{% if s.gain >= 0 %}gain-positive{% else %}gain-negative{% endif %}">
-                            {{ s.gain }}
-                        </span>
-                        {% else %}
-                            N/A
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            {% else %}
-                <tr>
-                    <td colspan="9" class="empty-msg">No stocks added yet.</td>
-                </tr>
-            {% endif %}
-        </tbody>
+            <!-- Live cells -->
+            <td class="current-price">—</td>
+            <td class="gain-cell">—</td>
+
+            <!-- DELETE BUTTON -->
+            <td>
+                <a href="/portfolio/delete/{{ s.id }}" 
+                   class="delete-btn"
+                   style="background:#e74c3c;color:white;padding:6px 12px;border-radius:6px;text-decoration:none;"
+                   onclick="return confirm('Delete this stock from portfolio?');">                   
+                   Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+    {% else %}
+        <tr>
+            <td colspan="10" class="empty-msg">No stocks added yet.</td>
+        </tr>
+    {% endif %}
+</tbody>
+
     </table>
 
 </div>
 
-<!-- LIVE PRICE REFRESH SCRIPT -->
+<!-- AJAX Live Price Refresh -->
 <script>
 async function refreshPortfolio() {
     try {
         const res = await fetch("/live/portfolio");
         const json = await res.json();
-
         if (!json.data) return;
 
         json.data.forEach(item => {
             const row = document.querySelector(`tr[data-id='${item.id}']`);
             if (!row) return;
 
-            // Update current price
+            // update price
             const priceCell = row.querySelector(".current-price");
-            if (priceCell) {
-                priceCell.innerText = item.current_price;
+            priceCell.innerText = item.current_price;
+
+            // update gain
+            const gainCell = row.querySelector(".gain-cell");
+
+            if (item.gain === "N/A") {
+                gainCell.innerHTML = "N/A";
+                return;
             }
 
-            // Update gain/loss
-            const gainCell = row.querySelector(".gain-cell");
-            if (gainCell) {
-                if (item.gain === "N/A") {
-                    gainCell.innerHTML = "N/A";
-                } else {
-                    gainCell.innerHTML = `
-                        <span class="${item.gain >= 0 ? "gain-positive" : "gain-negative"}">
-                            ${item.gain}
-                        </span>
-                    `;
-                }
-            }
+            gainCell.innerHTML = `
+                <span class="${item.gain >= 0 ? 'gain-positive' : 'gain-negative'}">
+                    ${item.gain}
+                </span>
+            `;
         });
 
     } catch (err) {
-        console.log("Error updating portfolio:", err);
+        console.log("Error refreshing portfolio:", err);
     }
 }
 
-// Refresh every 12 seconds
 setInterval(refreshPortfolio, 12000);
 refreshPortfolio();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+const sectorLabels = {{ sector_labels | tojson }};
+const sectorValues = {{ sector_values | tojson }};
+
+new Chart(document.getElementById("sectorChart"), {
+    type: "doughnut",
+    data: {
+        labels: sectorLabels,
+        datasets: [{
+            data: sectorValues,
+            backgroundColor: [
+                "#2563eb", "#16a34a", "#f97316",
+                "#dc2626", "#9333ea", "#14b8a6",
+                "#facc15", "#64748b"
+            ]
+        }]
+    },
+    options: {
+    responsive: true,
+    maintainAspectRatio: false,   // 🔥 THIS FIXES BIG CHARTS
+    plugins: {
+        legend: {
+            position: "bottom"
+        }
+    }
+}
+
+});
+</script>
+<script>
+async function loadCapChart() {
+    const res = await fetch("/api/portfolio/cap-allocation");
+    const data = await res.json();
+
+    const ctx = document.getElementById("capChart");
+
+    new Chart(ctx, {
+        type: "doughnut",
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.values,
+                backgroundColor: [
+                    "#2563eb",  // Large Cap
+                    "#f59e0b",  // Mid Cap
+                    "#ef4444"   // Small Cap
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,   // ✅ FIX
+            plugins: {
+                legend: {
+                    position: "bottom"
+                }
+            }
+        }
+    });
+}
+
+loadCapChart();
+</script>
+
+<script>
+async function loadPnLChart() {
+    const res = await fetch("/api/portfolio/pnl");
+    const data = await res.json();
+
+    new Chart(document.getElementById("pnlChart"), {
+        type: "bar",
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: "Profit / Loss (₹)",
+                data: data.pnl,
+                backgroundColor: data.colors
+            }]
+        },
+        options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: "y",
+    plugins: {
+        legend: { display: false }
+    },
+    scales: {
+        x: {
+            ticks: {
+                callback: value => "₹" + value
+            }
+        }
+    }
+}
+
+    });
+}
+
+loadPnLChart();
+</script>
+
+
+
+<script>
+async function loadPortfolioTicker() {
+  try {
+    const res = await fetch("/live/portfolio");
+    const json = await res.json();
+    if (!json.data || json.data.length === 0) return;
+
+    const ticker = document.getElementById("portfolioTicker");
+    ticker.innerHTML = "";
+
+    const items = [];
+
+    json.data.forEach(stock => {
+      const changeClass = stock.gain >= 0 ? "up" : "down";
+      const arrow = stock.gain >= 0 ? "▲" : "▼";
+
+      items.push(`
+        <div class="ticker-item">
+          <strong>${stock.company_name}</strong>
+          <span class="symbol">(${stock.symbol})</span>
+          <span class="price">₹${stock.current_price}</span>
+          <span class="${changeClass}">
+            ${arrow} ${stock.gain}
+          </span>
+        </div>
+      `);
+    });
+
+    // 🔁 duplicate for infinite scroll
+    ticker.innerHTML = items.join("") + items.join("");
+
+  } catch (err) {
+    console.error("Ticker error:", err);
+  }
+}
+
+loadPortfolioTicker();
+setInterval(loadPortfolioTicker, 15000);
+</script>
+
+
+
 
 </body>
 </html>

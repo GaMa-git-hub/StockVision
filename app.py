@@ -1,13 +1,16 @@
+import os
 from flask import Flask, render_template, request, redirect, session
 from werkzeug.security import generate_password_hash, check_password_hash
-import mysql.connector
+from mysql.connector import IntegrityError
+
 from db import get_db_connection
-from utils import get_stock_live
+from utils import get_stock_live, get_cap_category
 
-
-
+# ----------------------------------------------------
+# APP SETUP
+# ----------------------------------------------------
 app = Flask(__name__)
-app.secret_key = "supersecretkey"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-fallback-key")
 
 
 # ----------------------------------------------------
@@ -34,7 +37,6 @@ def login():
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-
     cursor.execute("SELECT * FROM users WHERE email=%s", (email,))
     user = cursor.fetchone()
     conn.close()
@@ -47,7 +49,6 @@ def login():
 
     session["user_id"] = user["id"]
     session["user_name"] = user["name"]
-
     return redirect("/dashboard")
 
 
@@ -65,7 +66,7 @@ def register():
     password = request.form.get("password")
 
     if not name or not email or not password:
-        return render_template("register.html", error="All fields are required")
+        return render_template("register.html", error="All fields required")
 
     hashed_pw = generate_password_hash(password)
 
@@ -77,14 +78,13 @@ def register():
             INSERT INTO users (name, email, password)
             VALUES (%s, %s, %s)
         """, (name, email, hashed_pw))
-
         conn.commit()
+    except IntegrityError:
         conn.close()
-        return redirect("/login")
+        return render_template("login.html", error="User already exists")
 
-    except mysql.connector.IntegrityError:
-        return render_template("login.html",
-                               error="User already exists. Please login.")
+    conn.close()
+    return redirect("/login")
 
 
 # ----------------------------------------------------
@@ -94,26 +94,21 @@ def register():
 def dashboard():
     if "user_id" not in session:
         return redirect("/login")
-
     return render_template("dashboard.html", active_page="dashboard")
 
 
 # ----------------------------------------------------
-# PORTFOLIO SECTORS (unchanged)
+# PORTFOLIO
 # ----------------------------------------------------
 SECTORS = [
-    "All",
-    "IT Industry", "Banking", "Energy", "Financial", "FMCG",
-    "Healthcare", "Chemicals", "Real Estate",
-    "Automobile & Ancillaries", "Agricultural", "Consumer Durables",
-    "Industrial Products", "Hospitality & Travel", "Insurance",
-    "Media & Entertainment", "Textile Industry", "Power", "Paints"
+    "All", "IT Industry", "Banking", "Energy", "Financial", "FMCG",
+    "Healthcare", "Chemicals", "Real Estate", "Automobile & Ancillaries",
+    "Agricultural", "Consumer Durables", "Industrial Products",
+    "Hospitality & Travel", "Insurance", "Media & Entertainment",
+    "Textile Industry", "Power", "Paints"
 ]
 
 
-# ----------------------------------------------------
-# PORTFOLIO (unchanged)
-# ----------------------------------------------------
 @app.route("/portfolio", methods=["GET", "POST"])
 def portfolio():
 
@@ -121,31 +116,35 @@ def portfolio():
         return redirect("/login")
 
     user_id = session["user_id"]
-
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # ADD STOCK
+    # -------- ADD STOCK --------
     if request.method == "POST":
-        sector = request.form.get("sector")
-        company = request.form.get("company_name")
-        symbol = request.form.get("symbol")
-        purchase_date = request.form.get("purchase_date")
-        exchange = request.form.get("exchange")
-        avg_price = float(request.form.get("buy_price"))
-        quantity = int(request.form.get("quantity"))
+        symbol = request.form["symbol"].upper().strip()
+        exchange = request.form["exchange"]
+
+        live = get_stock_live(symbol, exchange)
+        company_name = live.get("name") or symbol
 
         cursor.execute("""
-            INSERT INTO portfolio 
-            (user_id, sector, company_name, symbol, purchase_date, exchange,
-             average_purchase_price, quantity, current_price)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NULL)
-        """, (user_id, sector, company, symbol, purchase_date, exchange,
-              avg_price, quantity))
-
+            INSERT INTO portfolio
+            (user_id, sector, company_name, symbol, purchase_date,
+             exchange, average_purchase_price, quantity)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            user_id,
+            request.form["sector"],
+            company_name,
+            symbol,
+            request.form["purchase_date"],
+            exchange,
+            float(request.form["buy_price"]),
+            int(request.form["quantity"])
+        ))
         conn.commit()
 
-    # FILTER
+    # -------- FILTER --------
     selected_sector = request.args.get("sector", "All")
 
     if selected_sector == "All":
@@ -157,28 +156,177 @@ def portfolio():
         """, (user_id, selected_sector))
 
     stocks = cursor.fetchall()
-
-    # NO LIVE PRICE YET — placeholders
-    for s in stocks:
-        s["current_price"] = "N/A"
-        s["gain"] = "N/A"
-
     conn.close()
 
-    return render_template("portfolio.html",
-                           all_sectors=SECTORS,
-                           selected_sector=selected_sector,
-                           stocks=stocks,
-                           active_page="portfolio")
+    # -------- TOTALS --------
+    total_invested = 0.0
+    total_current = 0.0
+    sector_map = {}
+
+    for s in stocks:
+        avg = float(s["average_purchase_price"])
+        qty = int(s["quantity"])
+        invested = avg * qty
+        total_invested += invested
+        sector_map[s["sector"]] = sector_map.get(s["sector"], 0) + invested
+
+        live = get_stock_live(s["symbol"], s["exchange"])
+        price = live.get("price") or avg
+
+        s["category"] = get_cap_category(
+            market_cap=live.get("market_cap"),
+            exchange=s["exchange"]
+        )
+
+        current_value = price * qty
+        total_current += current_value
+
+        s["current_price"] = round(price, 2)
+        s["gain"] = round(current_value - invested, 2)
+
+    total_pnl = total_current - total_invested
+    return_pct = (total_pnl / total_invested * 100) if total_invested else 0
+
+    return render_template(
+        "portfolio.html",
+        stocks=stocks,
+        all_sectors=SECTORS,
+        selected_sector=selected_sector,
+        sector_labels=list(sector_map.keys()),
+        sector_values=list(sector_map.values()),
+        total_invested=round(total_invested, 2),
+        total_current=round(total_current, 2),
+        total_pnl=round(total_pnl, 2),
+        return_pct=round(return_pct, 2),
+        active_page="portfolio"
+    )
 
 
 # ----------------------------------------------------
-# WATCHLISTS
+# CHART APIs
 # ----------------------------------------------------
-TABLE_WATCHLIST_ITEMS = "watchlist_items"   # <-- FIXED
+@app.route("/api/portfolio/cap-allocation")
+def cap_allocation_chart():
+
+    if "user_id" not in session:
+        return {"error": "not logged in"}, 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT symbol, exchange, average_purchase_price, quantity
+        FROM portfolio WHERE user_id=%s
+    """, (session["user_id"],))
+    rows = cursor.fetchall()
+    conn.close()
+
+    cap_totals = {}
+
+    for r in rows:
+        live = get_stock_live(r["symbol"], r["exchange"])
+        category = get_cap_category(live.get("market_cap"), r["exchange"])
+        invested = float(r["average_purchase_price"]) * int(r["quantity"])
+        cap_totals[category] = cap_totals.get(category, 0) + invested
+
+    return {"labels": list(cap_totals.keys()), "values": list(cap_totals.values())}
 
 
-# SHOW ALL WATCHLISTS (GET + POST)
+@app.route("/api/portfolio/pnl")
+def portfolio_pnl_api():
+
+    if "user_id" not in session:
+        return {"error": "not logged in"}, 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT symbol, average_purchase_price, quantity, exchange
+        FROM portfolio WHERE user_id=%s
+    """, (session["user_id"],))
+    rows = cursor.fetchall()
+    conn.close()
+
+    labels, pnl, colors = [], [], []
+
+    for r in rows:
+        live = get_stock_live(r["symbol"], r["exchange"])
+        price = live.get("price") or float(r["average_purchase_price"])
+
+        invested = float(r["average_purchase_price"]) * int(r["quantity"])
+        gain = round(price * int(r["quantity"]) - invested, 2)
+
+        labels.append(r["symbol"])
+        pnl.append(gain)
+        colors.append("#16a34a" if gain >= 0 else "#dc2626")
+
+    return {"labels": labels, "pnl": pnl, "colors": colors}
+
+
+# ----------------------------------------------------
+# LIVE PORTFOLIO
+# ----------------------------------------------------
+@app.route("/live/portfolio")
+def live_portfolio():
+
+    if "user_id" not in session:
+        return {"error": "not logged in"}, 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT id, symbol, company_name, exchange,
+               average_purchase_price, quantity
+        FROM portfolio
+        WHERE user_id=%s
+    """, (session["user_id"],))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    data = []
+
+    for r in rows:
+        live = get_stock_live(r["symbol"], r["exchange"])
+        price = live.get("price")
+
+        if price is None:
+            price = float(r["average_purchase_price"])
+
+        gain = (price - float(r["average_purchase_price"])) * int(r["quantity"])
+
+        data.append({
+            "id": r["id"],
+            "symbol": r["symbol"],
+            "company_name": r["company_name"],  # ✅ FIX
+            "current_price": round(price, 2),
+            "gain": round(gain, 2)
+        })
+
+    return {"data": data}
+
+# ----------------------------------------------------
+# DELETE PORTFOLIO STOCK
+# ----------------------------------------------------
+@app.route("/portfolio/delete/<int:id>")
+def portfolio_delete(id):
+
+    if "user_id" not in session:
+        return redirect("/login")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM portfolio WHERE id=%s AND user_id=%s",
+                   (id, session["user_id"]))
+    conn.commit()
+    conn.close()
+
+    return redirect("/portfolio")
+
+
+# ----------------------------------------------------
+# WATCHLIST
+# ----------------------------------------------------
 @app.route("/watchlist", methods=["GET", "POST"])
 def watchlist_home():
 
@@ -188,7 +336,6 @@ def watchlist_home():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Create watchlist
     if request.method == "POST":
         name = request.form.get("name")
         if name:
@@ -198,10 +345,8 @@ def watchlist_home():
             """, (session["user_id"], name))
             conn.commit()
 
-    # Fetch all watchlists
     cursor.execute("SELECT * FROM watchlists WHERE user_id=%s", (session["user_id"],))
     watchlists = cursor.fetchall()
-
     conn.close()
 
     return render_template("watchlist.html",
@@ -209,95 +354,83 @@ def watchlist_home():
                            active_page="watchlist")
 
 
-# SHOW ONE WATCHLIST (with live data)
-from utils import get_stock_live
-from flask import request, render_template
-
 @app.route("/watchlist/<int:id>")
 def watchlist_view(id):
+
     if "user_id" not in session:
         return redirect("/login")
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Get watchlist
-    cursor.execute("SELECT * FROM watchlists WHERE id=%s AND user_id=%s", (id, session["user_id"]))
+    cursor.execute("""
+        SELECT * FROM watchlists
+        WHERE id=%s AND user_id=%s
+    """, (id, session["user_id"]))
     wl = cursor.fetchone()
-    if wl is None:
-        conn.close()
-        return "Watchlist not found", 404
 
-    # Get items
+    if not wl:
+        conn.close()
+        return "Not found", 404
+
     cursor.execute("SELECT * FROM watchlist_items WHERE watchlist_id=%s", (id,))
     items = cursor.fetchall()
     conn.close()
 
-    # Enrich items with live data
     enriched = []
     for it in items:
-        sym = it.get("symbol")
-        ex = it.get("exchange")
-        live = get_stock_live(sym, ex)
+        live = get_stock_live(it["symbol"], it["exchange"])
+        enriched.append({
+            "id": it["id"],
+            "symbol": it["symbol"],
+            "company_name": live.get("name") or it["symbol"],
+            "price": live.get("price"),
+            "change": live.get("change"),
+            "percent_change": live.get("percent_change")
+        })
 
-        price = live.get("price")
-        change = live.get("change")
-        pct = live.get("percent_change")
-        name = live.get("name") or sym
+    return render_template("watchlist_view.html",
+                           wl=wl,
+                           items=enriched,
+                           active_page="watchlist")
 
-        it["company_name"] = name
-        it["price"] = price if price is not None else "N/A"
-        it["change"] = change if change is not None else "N/A"
-        it["percent_change"] = pct if pct is not None else "N/A"
 
-        enriched.append(it)
+@app.route("/live/watchlist/<int:id>")
+def live_watchlist(id):
 
-    # --- Sorting logic ---
-    sort = request.args.get("sort")  # expected: 'price', 'change', 'percent_change', 'symbol', 'name'
-    direction = request.args.get("dir", "desc").lower()  # 'asc' or 'desc'
+    if "user_id" not in session:
+        return {"error": "not logged in"}, 403
 
-    def sort_key_price(x):
-        v = x.get("price")
-        return float(v) if (isinstance(v, (int,float)) or (isinstance(v,str) and v != "N/A")) else float("-inf")
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT * FROM watchlist_items WHERE watchlist_id=%s
+    """, (id,))
+    items = cursor.fetchall()
+    conn.close()
 
-    def sort_key_change(x):
-        v = x.get("change")
-        return float(v) if (isinstance(v, (int,float)) or (isinstance(v,str) and v != "N/A")) else float("-inf")
+    data = []
+    for it in items:
+        live = get_stock_live(it["symbol"], it["exchange"])
 
-    def sort_key_pct(x):
-        v = x.get("percent_change")
-        return float(v) if (isinstance(v, (int,float)) or (isinstance(v,str) and v != "N/A")) else float("-inf")
+        data.append({
+            "id": it["id"],
+            "symbol": it["symbol"],
+            "company_name": live.get("name") or it["symbol"],  # ✅ FIX
+            "price": live.get("price"),
+            "change": live.get("change"),
+            "percent_change": live.get("percent_change")
+        })
 
-    if sort:
-        if sort == "price":
-            enriched.sort(key=sort_key_price, reverse=(direction=="desc"))
-        elif sort == "change":
-            enriched.sort(key=sort_key_change, reverse=(direction=="desc"))
-        elif sort in ("percent_change", "pct"):
-            enriched.sort(key=sort_key_pct, reverse=(direction=="desc"))
-        elif sort == "symbol":
-            enriched.sort(key=lambda x: (x.get("symbol") or "").upper(), reverse=(direction=="desc"))
-        elif sort == "name":
-            enriched.sort(key=lambda x: (x.get("company_name") or "").upper(), reverse=(direction=="desc"))
+    return {"data": data}
 
-    # If AJAX request, return the rows partial only
-    if request.args.get("ajax") == "1":
-        return render_template("partials/watchlist_rows.html", items=enriched)
 
-    # Otherwise render full page
-    return render_template("watchlist_view.html", wl=wl, items=enriched, active_page="watchlist", current_sort=sort or "", current_dir=direction)
-
-# ADD ITEM
-from mysql.connector import IntegrityError
 
 @app.route("/watchlist/<int:id>/add", methods=["POST"])
-def watchlist_add_item(id):
+def watchlist_add(id):
 
-    symbol = request.form.get("symbol", "").upper().strip()
-    exchange = request.form.get("exchange")
-
-    if not symbol or not exchange:
-        return redirect(f"/watchlist/{id}")
+    symbol = request.form["symbol"].upper().strip()
+    exchange = request.form["exchange"]
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -308,115 +441,47 @@ def watchlist_add_item(id):
             VALUES (%s, %s, %s)
         """, (id, symbol, exchange))
         conn.commit()
-
     except IntegrityError:
-        # Duplicate entry detected
         conn.close()
         return redirect(f"/watchlist/{id}?error=duplicate")
 
     conn.close()
     return redirect(f"/watchlist/{id}")
-    enriched = enrich_items_with_live_prices(items)
-
-    # ---------------------------------------------------
-    # 🔥 THIS IS WHERE YOU PUT THE AJAX CHECK
-    # ---------------------------------------------------
-    if request.args.get("ajax"):
-        return render_template("partials/watchlist_rows.html", items=enriched)
-
-    # 3. Normal page load
-    return render_template("watchlist_view.html", items=enriched)
 
 
-
-# DELETE ITEM
 @app.route("/watchlist/item/<int:item_id>/delete")
-def watchlist_delete_item(item_id):
+def watchlist_item_delete(item_id):
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-
-    cursor.execute(f"SELECT watchlist_id FROM {TABLE_WATCHLIST_ITEMS} WHERE id=%s", (item_id,))
+    cursor.execute("SELECT watchlist_id FROM watchlist_items WHERE id=%s", (item_id,))
     row = cursor.fetchone()
 
-    if row is None:
+    if not row:
         conn.close()
-        return "Item not found", 404
+        return "Not found", 404
 
-    watchlist_id = row["watchlist_id"]
-
-    cursor.execute(f"DELETE FROM {TABLE_WATCHLIST_ITEMS} WHERE id=%s", (item_id,))
+    wl_id = row["watchlist_id"]
+    cursor.execute("DELETE FROM watchlist_items WHERE id=%s", (item_id,))
     conn.commit()
     conn.close()
 
-    return redirect(f"/watchlist/{watchlist_id}")
+    return redirect(f"/watchlist/{wl_id}")
 
 
-# DELETE WATCHLIST
 @app.route("/watchlist/delete/<int:id>")
 def delete_watchlist(id):
 
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute(f"DELETE FROM {TABLE_WATCHLIST_ITEMS} WHERE watchlist_id=%s", (id,))
+    cursor.execute("DELETE FROM watchlist_items WHERE watchlist_id=%s", (id,))
     cursor.execute("DELETE FROM watchlists WHERE id=%s AND user_id=%s",
                    (id, session["user_id"]))
-
     conn.commit()
     conn.close()
 
     return redirect("/watchlist")
 
-#------Live price in portfolio -------------------
-@app.route("/live/portfolio")
-def live_portfolio():
-    if "user_id" not in session:
-        return {"error": "not logged in"}, 403
-
-    user_id = session["user_id"]
-
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    cursor.execute("""
-        SELECT id, symbol, average_purchase_price, quantity, exchange
-        FROM portfolio
-        WHERE user_id = %s
-    """, (user_id,))
-    rows = cursor.fetchall()
-    conn.close()
-
-    results = []
-
-    for r in rows:
-        try:
-            # FIXED FUNCTION NAME ↓↓↓↓↓
-            live = get_stock_live(r["symbol"], r["exchange"])
-
-            current_price = live.get("price")
-
-            if current_price is None:
-                raise Exception("No live price")
-
-            gain_value = (current_price - r["average_purchase_price"]) * r["quantity"]
-
-            results.append({
-                "id": r["id"],
-                "symbol": r["symbol"],
-                "current_price": round(current_price, 2),
-                "gain": round(gain_value, 2),
-            })
-
-        except:
-            results.append({
-                "id": r["id"],
-                "symbol": r["symbol"],
-                "current_price": "N/A",
-                "gain": "N/A",
-            })
-
-    return {"data": results}
 
 # ----------------------------------------------------
 # LOGOUT

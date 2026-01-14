@@ -20,7 +20,7 @@ body{
     background:var(--nav-dark);
     padding:12px 0;
     box-shadow:0 2px 10px rgba(0,0,0,0.06);
-    position:relative;   /* ensures no overlap */
+    position:relative;
     z-index:10;
 }
 
@@ -153,7 +153,6 @@ body{
     background:#b91c1c;
 }
 
-
 /* ADD ITEM FORM */
 .add-stock-form{
     display:flex;
@@ -208,20 +207,6 @@ body{
     text-align:center;
 }
 
-/* DELETE Button */
-.delete-btn{
-    color:white;
-    background:#dc2626;
-    padding:7px 14px;
-    border-radius:8px;
-    font-weight:600;
-    text-decoration:none;
-    font-size:13px;
-}
-.delete-btn:hover{
-    background:#b91c1c;
-}
-
 /* DELETE WATCHLIST BUTTON */
 .delete-watchlist-btn{
     display:inline-block;
@@ -237,11 +222,8 @@ body{
     background:#b91c1c;
 }
 
+/* ------- FINAL MSN-STYLE TABLE ------- */
 
-
-/* ------- FINAL MSN-STYLE TABLE (FIXED WIDTH, PERFECT ALIGNMENT) ------- */
-
-/* header area */
 .watchlist-header{
   display:flex;
   justify-content:space-between;
@@ -250,7 +232,6 @@ body{
 }
 .wl-title{ font-size:28px; margin:0; }
 
-/* inline add form */
 .add-inline-form{ display:flex; gap:8px; align-items:center; }
 .add-inline-form input{
   padding:8px 10px; border-radius:8px; border:1px solid #e6e9ee; min-width:220px;
@@ -258,7 +239,6 @@ body{
 .add-inline-form select{ padding:8px; border-radius:8px; border:1px solid #e6e9ee; }
 .add-btn{ background:#2b7be4; color:white; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:600; }
 
-/* table wrapper */
 .table-wrap{
     overflow-x:auto;
     border-radius:8px;
@@ -271,11 +251,14 @@ body{
 .msn-table{
     width:100%;
     border-collapse:collapse;
-    table-layout:fixed;         /* 🔥 MAGIC for perfect alignment */
+    table-layout:fixed;
     font-size:14px;
 }
+.msn-table th {
+    text-align: left;
+}
 
-.msn-table th,
+
 .msn-table td{
     padding:14px 12px;
     border-bottom:1px solid #eee;
@@ -285,14 +268,16 @@ body{
     text-overflow:ellipsis;
 }
 
-/* ---------- FINAL COLUMN WIDTHS (DO NOT DUPLICATE) ---------- */
+/* ---------- COLUMN WIDTHS ---------- */
 
-.col-symbol{ width:12%; text-align:left; }
-.col-name  { width:28%; text-align:left; }
-.col-price { width:15%; text-align:right; }
-.col-change{ width:15%; text-align:right; }
-.col-pct   { width:15%; text-align:right; }
-.col-action{ width:10%; text-align:center; }
+.col-symbol { width:12%; text-align:left; }
+.col-name   { width:28%; text-align:left; }
+
+.col-price  { width:15%; text-align:right; padding-right:25px; }
+.col-change { width:15%; text-align:right; padding-right:25px; }
+.col-pct    { width:15%; text-align:right; padding-right:25px; }
+
+.col-action { width:10%; text-align:center; }
 
 /* gain/loss colors */
 .gain-positive{ color:#16a34a; font-weight:700; }
@@ -312,57 +297,12 @@ body{
 
 .empty-msg{ padding:24px; text-align:center; color:var(--muted); }
 
-/* responsive collapse */
+/* responsive */
 @media (max-width:800px){
   .col-name{ width:40%; }
 }
 
-.sort-arrows {
-    font-size: 10px;
-    margin-left: 6px;
-    opacity: 0.35;
-}
-
-.sort-arrows .up,
-.sort-arrows .down {
-    display: inline-block;
-    padding: 0 2px;
-}
-
-/* highlight when active */
-.sort-active-up .up {
-    color: #2563eb;
-    opacity: 1;
-    font-weight: 900;
-}
-
-.sort-active-down .down {
-    color: #2563eb;
-    opacity: 1;
-    font-weight: 900;
-}
-
-.sort-btn {
-    cursor: pointer;            /* HAND POINTER FIX */
-    user-select: none;          /* Prevent text selection */
-}
-
-.sort-btn .sort-arrows {
-    font-size: 12px;
-    opacity: 0.5;
-    margin-left: 4px;
-}
-
-.sort-btn:hover .sort-arrows {
-    opacity: 1;                 /* brighter on hover */
-}
-.sort-btn .sort-arrows {
-    transition: opacity 0.2s ease;
-}
-
-
-/* ----------- SORTING ARROWS ----------- */
-
+/* SORTING (ONLY ONE VERSION KEPT) */
 .sort-btn {
     cursor: pointer;
     user-select: none;
@@ -381,22 +321,33 @@ body{
     transition: 0.2s ease;
 }
 
-/* ASC active → highlight ▲ only */
+/* ASC active */
 .sort-active-up .sort-arrows .up {
     opacity: 1;
     color: #2563eb;
     font-weight: 900;
 }
 
-/* DESC active → highlight ▼ only */
+/* DESC active */
 .sort-active-down .sort-arrows .down {
     opacity: 1;
     color: #2563eb;
     font-weight: 900;
 }
 
-/* Hover effect */
+/* Hover */
 .sort-btn:hover .sort-arrows .up,
 .sort-btn:hover .sort-arrows .down {
     opacity: 0.7;
+}
+
+.delete-btn{
+    display:inline-block;
+    margin-top:25px;
+    color:white;
+    background:#dc2626;
+    padding:12px 18px;
+    border-radius:5px;
+    font-weight:600;
+    text-decoration:none;
 }

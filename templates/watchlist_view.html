@@ -43,7 +43,7 @@
 
   <div class="table-wrap">
     <table class="msn-table">
-<thead>
+      <thead>
 <tr>
     <th class="col-symbol">Symbol</th>
     <th class="col-name">Name</th>
@@ -76,11 +76,23 @@
 </tr>
 </thead>
 
-<tbody id="live-table-body">
-    {% include "partials/watchlist_rows.html" %}
-</tbody>
-</table>
 
+
+      <tbody id="live-table-body">
+        {% for it in items %}
+        <tr data-id="{{ it.id }}" data-symbol="{{ it.symbol }}" data-ex="{{ it.exchange }}">
+            <td>{{ it.symbol }}</td>
+            <td class="company-name">—</td>
+            <td class="price-cell">—</td>
+            <td class="change-cell">—</td>
+            <td class="pct-cell">—</td>
+            <td>
+              <a href="/watchlist/item/{{ it.id }}/delete" class="delete-btn">Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
   <div class="bottom-actions">
@@ -89,16 +101,63 @@
 </div>
 
 <script>
-function refreshPrices() {
-  fetch(window.location.href + "?ajax=1")
-    .then(resp => resp.text())
-    .then(html => {
-      document.querySelector("#live-table-body").innerHTML = html;
-    });
-}
-setInterval(refreshPrices, 20000);
+async function refreshWatchlist() {
+    try {
+        const res = await fetch("/live/watchlist/{{ wl.id }}");
+        const json = await res.json();
 
-/* SORTING */
+        if (!json.data) return;
+
+        json.data.forEach(item => {
+            const row = document.querySelector(`tr[data-id='${item.id}']`);
+            if (!row) return;
+
+            row.querySelector(".company-name").innerText = item.company_name || item.symbol;
+
+            const priceCell = row.querySelector(".price-cell");
+            const changeCell = row.querySelector(".change-cell");
+            const pctCell = row.querySelector(".pct-cell");
+
+            priceCell.innerText = item.price !== null ? item.price : "N/A";
+
+            let change = item.change;
+            let pct = item.percent_change;
+
+            if (change === null) {
+                changeCell.innerHTML = "N/A";
+                pctCell.innerHTML = "N/A";
+                return;
+            }
+
+            changeCell.innerHTML = `
+                <span class="${change >= 0 ? "gain-positive" : "gain-negative"}">
+                    ${change}
+                </span>
+            `;
+
+            pctCell.innerHTML = `
+                <span class="${pct >= 0 ? "gain-positive" : "gain-negative"}">
+                    ${pct}%
+                </span>
+            `;
+        });
+
+    } catch (err) {
+        console.log("Error updating watchlist:", err);
+    }
+
+    // After refresh, resort table based on last setting
+    if (currentSort) {
+        sortTable(currentSort);
+    }
+}
+
+// Refresh every 20 seconds
+setInterval(refreshWatchlist, 20000);
+refreshWatchlist();
+
+
+/* SORTING (unchanged but works with new HTML) */
 function getCellNumber(row, index) {
     const txt = row.children[index].innerText.replace(/[₹,%▲▼]/g, "").trim();
     return txt === "N/A" || txt === "" ? null : parseFloat(txt);

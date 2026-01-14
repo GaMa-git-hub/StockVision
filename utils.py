@@ -1,127 +1,156 @@
-# utils.py
-import yfinance as yf
-from functools import lru_cache
+import requests
 import time
 
+FINNHUB_API_KEY = "d4nvmqpr01qk2nue8m40d4nvmqpr01qk2nue8m4g"
 
-# ------------------------------
-# Cached Yahoo Finance Fetch
-# ------------------------------
-# Cache lasts as long as server runs
-@lru_cache(maxsize=512)
-def _fetch_yf(symbol):
-    """
-    Handles yfinance fetch + fallback history.
-    Returns {info, hist}, timestamp
-    """
+# --------------------------------------------
+# GLOBAL NSE SESSION
+# --------------------------------------------
+NSE = requests.Session()
+
+NSE_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.nseindia.com/get-quotes/equity",
+    "Connection": "keep-alive"
+}
+
+def nse_bootstrap():
     try:
-        t = yf.Ticker(symbol)
-        info = t.info or {}
-        hist = t.history(period="2d")  # yesterday + today
-        return {"info": info, "hist": hist}, int(time.time())
-    except Exception:
-        return {"info": {}, "hist": None}, int(time.time())
+        NSE.get("https://www.nseindia.com", headers=NSE_HEADERS, timeout=3)
+    except:
+        pass
+
+nse_bootstrap()
+
+# --------------------------------------------
+# CACHE
+# --------------------------------------------
+LIVE_CACHE = {}
+CACHE_TTL = 12
 
 
-# ------------------------------
-# Map to Yahoo Finance Syntax
-# ------------------------------
-def map_symbol_for_yahoo(symbol, exchange):
-    s = symbol.upper().strip()
+# --------------------------------------------
+# NSE PRICE (INDIA)
+# --------------------------------------------
+def get_nse_price(symbol):
+    symbol = normalize_nse_symbol(symbol)
+    url = f"https://www.nseindia.com/api/quote-equity?symbol={symbol}"
 
-    if exchange == "NSE":
-        return f"{s}.NS"
-    if exchange == "BSE":
-        return f"{s}.BO"
-    if exchange == "US":
-        return s  # no suffix for US
-
-    return s
-
-
-# ------------------------------
-# Live Stock Fetch Function
-# ------------------------------
-def get_stock_live(symbol, exchange):
-    """
-    Returns a clean dict:
-
-    {
-      "name": str,
-      "price": float or None,
-      "change": float or None,
-      "percent_change": float or None
-    }
-    """
-
-    yf_sym = map_symbol_for_yahoo(symbol, exchange)
 
     try:
-        data, ts = _fetch_yf(yf_sym)
+        r = NSE.get(url, headers=NSE_HEADERS, timeout=6)
+        if "application/json" not in r.headers.get("Content-Type", ""):
+            return None
+
+        data = r.json()
+        price_info = data.get("priceInfo", {})
         info = data.get("info", {})
-        hist = data.get("hist")
 
-        # --------------------------
-        # Extract Name
-        # --------------------------
-        name = (
-            info.get("shortName")
-            or info.get("longName")
-            or symbol.upper()
-        )
+        price = price_info.get("lastPrice")
+        prev = price_info.get("previousClose")
+        market_cap = info.get("marketCap")   # ✅ IMPORTANT
 
-        # --------------------------
-        # Extract Current Price
-        # --------------------------
-        price = (
-            info.get("regularMarketPrice")
-            or info.get("currentPrice")
-        )
-
-        # fallback from history
-        if price is None and hist is not None and len(hist) >= 1:
-            try:
-                price = float(hist["Close"].iloc[-1])
-            except:
-                price = None
-
-        # --------------------------
-        # Previous Close
-        # --------------------------
-        prev_close = info.get("previousClose")
-
-        if prev_close is None and hist is not None and len(hist) >= 2:
-            try:
-                prev_close = float(hist["Close"].iloc[-2])
-            except:
-                prev_close = None
-
-        # --------------------------
-        # Compute Change
-        # --------------------------
-        change = None
-        pct = None
-
-        if price is not None and prev_close not in (None, 0):
-            try:
-                change = round(price - prev_close, 2)
-                pct = round((change / prev_close) * 100, 2)
-                price = round(price, 2)
-            except:
-                change = None
-                pct = None
+        if price is None or prev is None:
+            return None
 
         return {
-            "name": name,
-            "price": price,
-            "change": change,
-            "percent_change": pct
+            "name": info.get("companyName") or symbol,
+            "price": float(price),
+            "change": round(price - prev, 2),
+            "percent_change": round(((price - prev) / prev) * 100, 2),
+            "market_cap": market_cap          # ✅ RETURNED
         }
 
-    except Exception:
+    except:
+        return None
+
+def normalize_nse_symbol(symbol):
+    return symbol.replace("&", "%26")
+
+# --------------------------------------------
+# FINNHUB (US)
+# --------------------------------------------
+def get_finnhub_price(symbol):
+    try:
+        q = requests.get(
+            f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}",
+            timeout=5
+        ).json()
+
+        curr, prev = q.get("c"), q.get("pc")
+        if curr is None or prev is None:
+            return None
+
+        p = requests.get(
+            f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={FINNHUB_API_KEY}",
+            timeout=5
+        ).json()
+
         return {
-            "name": symbol.upper(),
+            "name": p.get("name") or symbol,
+            "price": float(curr),
+            "change": round(curr - prev, 2),
+            "percent_change": round(((curr - prev) / prev) * 100, 2),
+            "market_cap": p.get("marketCapitalization") * 1_000_000  # 🔥 IMPORTANT
+        }
+
+    except:
+        return None
+
+# --------------------------------------------
+# MASTER ROUTER
+# --------------------------------------------
+def get_stock_live(symbol, exchange):
+    symbol = symbol.upper().strip()
+    key = f"{symbol}|{exchange}"
+
+    if key in LIVE_CACHE and time.time() - LIVE_CACHE[key]["ts"] < CACHE_TTL:
+        return LIVE_CACHE[key]["data"]
+
+    if exchange in ["NSE", "BSE"]:
+        data = get_nse_price(symbol)
+    else:
+        data = get_finnhub_price(symbol)
+
+    if data is None:
+        return {
+            "name": symbol,
             "price": None,
             "change": None,
-            "percent_change": None
+            "percent_change": None,
+            "market_cap": None
         }
+
+    LIVE_CACHE[key] = {"data": data, "ts": time.time()}
+    return data
+
+
+# --------------------------------------------
+# MARKET CAP CATEGORY
+# --------------------------------------------
+NSE_KNOWN_CAPS = {
+    "RELIANCE": "Large Cap",
+    "TCS": "Large Cap",
+    "INFY": "Large Cap",
+    "HDFCBANK": "Large Cap",
+    "ICICIBANK": "Large Cap",
+    "SBIN": "Large Cap",
+}
+
+def get_cap_category(market_cap, exchange, symbol=None):
+    if exchange in ["NSE", "BSE"]:
+        return NSE_KNOWN_CAPS.get(symbol, "Mid Cap")  # safe fallback
+
+    if market_cap is None:
+        return "N/A"
+
+    market_cap = float(market_cap)
+
+    if market_cap >= 10_000_000_000:
+        return "Large Cap"
+    elif market_cap >= 2_000_000_000:
+        return "Mid Cap"
+    else:
+        return "Small Cap"

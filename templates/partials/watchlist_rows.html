@@ -1,38 +1,37 @@
-{% if items %}
-    {% for it in items %}
-<tr>
-    <td class="col-symbol"><strong>{{ it.symbol }}</strong></td>
+{% for it in items %}
+<tr data-id="{{ it.id }}" data-symbol="{{ it.symbol }}" data-ex="{{ it.exchange }}">
+
+    <td class="col-symbol">{{ it.symbol }}</td>
 
     <td class="col-name">{{ it.company_name }}</td>
 
-    <td class="col-price">
-        {% if it.price != "N/A" %}
-            ₹{{ "%.2f"|format(it.price) }}
-        {% else %} N/A {% endif %}
+    <td class="col-price price-cell">
+        {{ it.price if it.price != None else "—" }}
     </td>
 
-    <td class="col-change">
-        {% if it.change != "N/A" %}
-            <span class="{% if it.change >= 0 %}gain-positive{% else %}gain-negative{% endif %}">
-                {% if it.change >= 0 %}▲{% else %}▼{% endif %}
-                {{ "%.2f"|format(it.change) }}
+    <td class="col-change change-cell">
+        {% if it.change != None %}
+            <span class="{{ 'gain-positive' if it.change >= 0 else 'gain-negative' }}">
+                {{ it.change }}
             </span>
-        {% else %} N/A {% endif %}
+        {% else %}
+            —
+        {% endif %}
     </td>
 
-    <td class="col-pct">
-        {% if it.percent_change != "N/A" %}
-            <span class="{% if it.percent_change >= 0 %}gain-positive{% else %}gain-negative{% endif %}">
-                {{ "%.2f"|format(it.percent_change) }}%
+    <td class="col-pct pct-cell">
+        {% if it.percent_change != None %}
+            <span class="{{ 'gain-positive' if it.percent_change >= 0 else 'gain-negative' }}">
+                {{ it.percent_change }}%
             </span>
-        {% else %} N/A {% endif %}
+        {% else %}
+            —
+        {% endif %}
     </td>
 
     <td class="col-action">
-        <a href="/watchlist/item/{{ it.id }}/delete" class="btn-delete">Delete</a>
+        <a href="/watchlist/item/{{ it.id }}/delete" class="delete-btn">Delete</a>
     </td>
+
 </tr>
-    {% endfor %}
-{% else %}
-<tr><td colspan="6" class="empty-msg">No stocks added yet.</td></tr>
-{% endif %}
+{% endfor %}
